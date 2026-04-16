@@ -1,18 +1,16 @@
 {
+  "id": "subir-nuvio",
   "name": "Subir Providers",
-  "description": "BanglaPlex + Cinedoze",
+  "author": "Subir",
+  "version": "1.0.0",
   "providers": [
     {
-      "id": "banglaplex",
       "name": "BanglaPlex",
-      "supportedTypes": ["movie", "series"],
-      "url": "https://raw.githubusercontent.com/subirmazumdar/nuvio-provider/main/providers/banglaplex.js"
+      "file": "providers/banglaplex.js"
     },
     {
-      "id": "cinedoze",
       "name": "Cinedoze",
-      "supportedTypes": ["movie", "series"],
-      "url": "https://raw.githubusercontent.com/subirmazumdar/nuvio-provider/main/providers/cinedoze.js"
+      "file": "providers/cinedoze.js"
     }
   ]
 }
