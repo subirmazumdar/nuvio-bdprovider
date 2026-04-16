@@ -9,6 +9,7 @@
     "filename": "providers/banglaplex.js",
     "enabled": true,
     "formats": ["mp4", "m3u8"],
+    "logo": "https://via.placeholder.com/150",
     "contentLanguage": ["bn", "hi"]
   },
   {
@@ -21,6 +22,20 @@
     "filename": "providers/cinedoze.js",
     "enabled": true,
     "formats": ["mp4", "m3u8"],
+    "logo": "https://via.placeholder.com/150",
     "contentLanguage": ["en", "hi", "bn"]
-  }
+  },
+  {
+  "id": "test",
+  "name": "Test",
+  "description": "Test provider",
+  "version": "1.0.0",
+  "author": "Subir",
+  "supportedTypes": ["movie", "tv"],
+  "filename": "providers/test.js",
+  "enabled": true,
+  "formats": ["mp4"],
+  "logo": "https://via.placeholder.com/150",
+  "contentLanguage": ["en"]
+}
 ]
