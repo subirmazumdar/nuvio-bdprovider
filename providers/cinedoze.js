@@ -1,19 +1,33 @@
-function getStreams() {
+function getStreams(tmdbId, mediaType) {
   return new Promise((resolve) => {
 
     let streams = [];
 
-    fetch("https://cinedoze.tv/")
-      .then(res => res.text())
+    // Use public API (no key required alternative)
+    fetch("https://v3.sg.media-imdb.com/suggestion/x/" + tmdbId + ".json")
+      .then(res => res.json())
+      .then(data => {
+
+        let title = "";
+
+        if (data && data.d && data.d[0]) {
+          title = data.d[0].l;
+        }
+
+        if (!title) return resolve([]);
+
+        return fetch("https://cinedoze.tv/?s=" + encodeURIComponent(title));
+      })
+      .then(res => res ? res.text() : null)
       .then(html => {
 
         if (!html) return resolve([]);
 
-        let match = html.match(/https:\/\/cinedoze\.tv\/links\/[^\s"]+/);
+        let match = html.match(/href="(https:\/\/cinedoze\.tv\/[^"]+)"/);
 
         if (!match) return resolve([]);
 
-        return fetch(match[0]);
+        return fetch(match[1]);
       })
       .then(res => res ? res.text() : null)
       .then(page => {
@@ -23,29 +37,21 @@ function getStreams() {
         let links = page.match(/https?:\/\/[^\s"<]+/g) || [];
 
         links.forEach(link => {
-
           if (
-            link.includes("hubcloud") ||
             link.includes("gdflix") ||
+            link.includes("hubcloud") ||
             link.includes("filepress")
           ) {
-
-            let source = "Cinedoze";
-            let quality = "HD";
-
-            if (link.includes("2160")) quality = "4K";
-            else if (link.includes("1080")) quality = "1080p";
-
             streams.push({
-              name: source,
-              title: source + " - " + quality,
+              name: "Cinedoze",
+              title: "Stream",
               url: link,
-              quality: quality
+              quality: "HD"
             });
           }
         });
 
-        resolve(streams.slice(0, 10));
+        resolve(streams);
       })
       .catch(() => resolve([]));
 
