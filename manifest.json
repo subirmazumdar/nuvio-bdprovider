@@ -1,7 +1,20 @@
 {
   "name": "Subir Providers",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "scrapers": [
+    {
+      "id": "bdix_icc",
+      "name": "BDIX ICC",
+      "description": "ICC BDIX direct streams",
+      "version": "1.0.0",
+      "author": "Subir",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "providers/bdix_icc.js",
+      "enabled": true,
+      "formats": ["mp4"],
+      "logo": "https://via.placeholder.com/150",
+      "contentLanguage": ["bn"]
+    },
     {
       "id": "banglaplex",
       "name": "BanglaPlex",
