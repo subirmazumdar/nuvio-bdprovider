@@ -10,3 +10,6 @@ Providers:
 Paste this link in Nuvio:
 
 https://raw.githubusercontent.com/subirmazumdar/nuvio-provider/main/manifest.json
+
+
+Credit BDIX ICC - Inspired by BDIX CloudStream providers. Rewritten for Nuvio.
