@@ -2,56 +2,47 @@
 
 const BASE = "https://cinedoze.tv";
 
-async function getStreams(tmdbId, type) {
+async function getStreams(tmdbId) {
   try {
-
-    const meta = await getMeta(tmdbId, type);
+    const meta = await getMeta(tmdbId);
     if (!meta.title) return [];
 
-    // STEP 1: search (simple fallback)
-    const searchUrl = `${BASE}/?s=${encodeURIComponent(meta.title)}`;
-    const html = await fetchText(searchUrl);
-    if (!html) return [];
+    const searchHtml = await fetchText(`${BASE}/?s=${encodeURIComponent(meta.title)}`);
+    if (!searchHtml) return [];
 
-    const pageUrl = extractFirstPost(html);
-    if (!pageUrl) return [];
+    const postUrl = extractPost(searchHtml);
+    if (!postUrl) return [];
 
-    // STEP 2: open movie page
-    const page = await fetchText(pageUrl);
-    if (!page) return [];
+    const postPage = await fetchText(postUrl);
+    if (!postPage) return [];
 
-    // STEP 3: get /links/ page
-    const linkMatch = page.match(/https:\/\/cinedoze\.tv\/links\/[^\s"]+/);
-    if (!linkMatch) return [];
+    const linkPageUrl = postPage.match(/https:\/\/cinedoze\.tv\/links\/[^\s"]+/)?.[0];
+    if (!linkPageUrl) return [];
 
-    const linkPage = await fetchText(linkMatch[0]);
+    const linkPage = await fetchText(linkPageUrl);
     if (!linkPage) return [];
 
-    // STEP 4: extract host links
-    const links = linkPage.match(/https?:\/\/[^\s"<]+/g) || [];
+    const rawLinks = extractAllLinks(linkPage);
 
     const streams = [];
 
-    for (let link of links) {
-      if (
-        link.includes("hubcloud") ||
-        link.includes("gdflix") ||
-        link.includes("filepress")
-      ) {
+    for (let link of rawLinks) {
 
-        let video = await resolveHost(link);
-        if (video) {
-          streams.push({
-            name: "Cinedoze",
-            title: formatTitle(link),
-            url: video,
-            quality: detectQuality(link)
-          });
-        }
+      if (!isValidHost(link)) continue;
+
+      let final = await deepResolve(link);
+
+      if (final) {
+        streams.push({
+          name: "Cinedoze",
+          title: formatTitle(link),
+          url: final,
+          quality: detectQuality(link)
+        });
       }
     }
 
-    return streams.slice(0, 5);
+    return unique(streams).slice(0, 5);
 
   } catch {
     return [];
@@ -61,30 +52,55 @@ async function getStreams(tmdbId, type) {
 module.exports = { getStreams };
 
 
-// ----------------------
-// HELPERS
-// ----------------------
+// ---------- CORE FIX ----------
 
-async function fetchText(url) {
+async function deepResolve(url) {
   try {
-    const res = await fetch(url);
-    return await res.text();
+    const html = await fetchText(url);
+    if (!html) return null;
+
+    // try direct video
+    let m = html.match(/https?:\/\/[^\s"]+\.(m3u8|mp4)/);
+    if (m) return m[0];
+
+    // fallback iframe
+    let iframe = html.match(/<iframe[^>]+src="([^"]+)"/);
+    if (iframe) {
+      const iframePage = await fetchText(iframe[1]);
+      let v = iframePage?.match(/https?:\/\/[^\s"]+\.(m3u8|mp4)/);
+      if (v) return v[0];
+    }
+
+    return null;
+
   } catch {
     return null;
   }
 }
 
-function extractFirstPost(html) {
-  const m = html.match(/<a href="(https:\/\/cinedoze\.tv\/[^"]+)"/);
-  return m ? m[1] : null;
+
+// ---------- HELPERS ----------
+
+function extractPost(html) {
+  return html.match(/<a href="(https:\/\/cinedoze\.tv\/[^"]+)"/)?.[1];
 }
 
-async function resolveHost(url) {
+function extractAllLinks(html) {
+  return html.match(/https?:\/\/[^\s"<]+/g) || [];
+}
+
+function isValidHost(link) {
+  return (
+    link.includes("hubcloud") ||
+    link.includes("gdflix") ||
+    link.includes("filepress") ||
+    link.includes("streamtape")
+  );
+}
+
+async function fetchText(url) {
   try {
-    const res = await fetch(url);
-    const html = await res.text();
-    const m = html.match(/https?:\/\/[^\s"]+\.(m3u8|mp4)/);
-    return m ? m[0] : null;
+    return await (await fetch(url)).text();
   } catch {
     return null;
   }
@@ -99,13 +115,15 @@ function detectQuality(name) {
 }
 
 function formatTitle(link) {
-  if (link.includes("gdflix")) return "GDFlix";
-  if (link.includes("hubcloud")) return "HubCloud";
-  if (link.includes("filepress")) return "FilePress";
-  return "Stream";
+  return link.split("/")[2];
 }
 
-async function getMeta(tmdbId, type) {
+function unique(arr) {
+  const seen = new Set();
+  return arr.filter(x => !seen.has(x.url) && seen.add(x.url));
+}
+
+async function getMeta(tmdbId) {
   try {
     const res = await fetch(`https://v3.sg.media-imdb.com/suggestion/x/${tmdbId}.json`);
     const data = await res.json();
