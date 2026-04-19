@@ -1,135 +1,116 @@
-function getStreams() {
-  return new Promise((resolve) => {
+'use strict';
 
-    let streams = [];
+const BASE = "https://cinedoze.tv";
 
-    // STEP 1: Load homepage (for testing first)
-    fetch("https://cinedoze.tv/")
-      .then(res => res.text())
-      .then(html => {
+async function getStreams(tmdbId, type) {
+  try {
 
-        if (!html) return resolve([]);
+    const meta = await getMeta(tmdbId, type);
+    if (!meta.title) return [];
 
-        // STEP 2: find /links/ page
-        let match = html.match(/https:\/\/cinedoze\.tv\/links\/[^\s"]+/);
+    // STEP 1: search (simple fallback)
+    const searchUrl = `${BASE}/?s=${encodeURIComponent(meta.title)}`;
+    const html = await fetchText(searchUrl);
+    if (!html) return [];
 
-        if (!match) return resolve([]);
+    const pageUrl = extractFirstPost(html);
+    if (!pageUrl) return [];
 
-        return fetch(match[0]);
-      })
-      .then(res => res ? res.text() : null)
-      .then(page => {
+    // STEP 2: open movie page
+    const page = await fetchText(pageUrl);
+    if (!page) return [];
 
-        if (!page) return resolve([]);
+    // STEP 3: get /links/ page
+    const linkMatch = page.match(/https:\/\/cinedoze\.tv\/links\/[^\s"]+/);
+    if (!linkMatch) return [];
 
-        // STEP 3: extract host links
-        let links = page.match(/https?:\/\/[^\s"<]+/g) || [];
+    const linkPage = await fetchText(linkMatch[0]);
+    if (!linkPage) return [];
 
-        let hostLinks = links.filter(link =>
-          link.includes("hubcloud") ||
-          link.includes("gdflix") ||
-          link.includes("filepress")
-        );
+    // STEP 4: extract host links
+    const links = linkPage.match(/https?:\/\/[^\s"<]+/g) || [];
 
-        if (hostLinks.length === 0) return resolve([]);
+    const streams = [];
 
-        let pending = hostLinks.length;
+    for (let link of links) {
+      if (
+        link.includes("hubcloud") ||
+        link.includes("gdflix") ||
+        link.includes("filepress")
+      ) {
 
-        hostLinks.forEach(link => {
-
-          resolveHost(link).then(video => {
-
-            if (video) {
-              streams.push({
-                name: "Cinedoze",
-                title: formatTitle(link),
-                url: video,
-                quality: detectQuality(link)
-              });
-            }
-
-            pending--;
-            if (pending === 0) resolve(streams);
-
-          }).catch(() => {
-            pending--;
-            if (pending === 0) resolve(streams);
+        let video = await resolveHost(link);
+        if (video) {
+          streams.push({
+            name: "Cinedoze",
+            title: formatTitle(link),
+            url: video,
+            quality: detectQuality(link)
           });
+        }
+      }
+    }
 
-        });
+    return streams.slice(0, 5);
 
-      })
-      .catch(() => resolve([]));
-
-  });
+  } catch {
+    return [];
+  }
 }
 
 module.exports = { getStreams };
 
 
 // ----------------------
-// 🔧 RESOLVER FUNCTIONS
+// HELPERS
 // ----------------------
 
-function resolveHost(url) {
-  return new Promise((resolve) => {
-
-    fetch(url)
-      .then(res => res.text())
-      .then(html => {
-
-        if (!html) return resolve(null);
-
-        // try direct video extraction
-        let video = extractVideo(html);
-
-        if (video) return resolve(video);
-
-        // fallback: check redirect patterns
-        let redirect = html.match(/https?:\/\/[^\s"]+\.(m3u8|mp4)/);
-
-        if (redirect) return resolve(redirect[0]);
-
-        resolve(null);
-      })
-      .catch(() => resolve(null));
-
-  });
+async function fetchText(url) {
+  try {
+    const res = await fetch(url);
+    return await res.text();
+  } catch {
+    return null;
+  }
 }
 
-
-// extract direct stream
-function extractVideo(html) {
-
-  // m3u8
-  let m3u8 = html.match(/https?:\/\/[^\s"]+\.m3u8/);
-  if (m3u8) return m3u8[0];
-
-  // mp4
-  let mp4 = html.match(/https?:\/\/[^\s"]+\.mp4/);
-  if (mp4) return mp4[0];
-
-  return null;
+function extractFirstPost(html) {
+  const m = html.match(/<a href="(https:\/\/cinedoze\.tv\/[^"]+)"/);
+  return m ? m[1] : null;
 }
 
+async function resolveHost(url) {
+  try {
+    const res = await fetch(url);
+    const html = await res.text();
+    const m = html.match(/https?:\/\/[^\s"]+\.(m3u8|mp4)/);
+    return m ? m[0] : null;
+  } catch {
+    return null;
+  }
+}
 
-// detect quality
-function detectQuality(link) {
-  if (link.includes("2160")) return "4K";
-  if (link.includes("1080")) return "1080p";
-  if (link.includes("720")) return "720p";
+function detectQuality(name) {
+  name = name.toLowerCase();
+  if (name.includes("2160")) return "4K";
+  if (name.includes("1080")) return "1080p";
+  if (name.includes("720")) return "720p";
   return "HD";
 }
 
-
-// format title
 function formatTitle(link) {
+  if (link.includes("gdflix")) return "GDFlix";
+  if (link.includes("hubcloud")) return "HubCloud";
+  if (link.includes("filepress")) return "FilePress";
+  return "Stream";
+}
 
-  let source = "Cinedoze";
-
-  if (link.includes("gdflix")) source = "GDFlix";
-  if (link.includes("hubcloud")) source = "HubCloud";
-  if (link.includes("filepress")) source = "FilePress";
-
-  return source + " - " + detectQuality(link);
+async function getMeta(tmdbId, type) {
+  try {
+    const res = await fetch(`https://v3.sg.media-imdb.com/suggestion/x/${tmdbId}.json`);
+    const data = await res.json();
+    return { title: data?.d?.[0]?.l || "" };
+  } catch {
+    return {};
+  }
 }
