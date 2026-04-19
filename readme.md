@@ -3,6 +3,7 @@
 Providers:
 - BanglaPlex
 - Cinedoze
+- BDIX ICC
 
 ## Install
 
